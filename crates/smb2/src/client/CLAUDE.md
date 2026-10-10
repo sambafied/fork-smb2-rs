@@ -482,6 +482,13 @@ Rules, in order (AGENTS.md pitfall 30):
 
 ## Encryption
 
+NEGOTIATE advertises `Capabilities::ENCRYPTION` as well as the cipher context.
+MS-SMB2 3.2.4.2.2.2 recommends this for SMB 3.1.1; Samba 4.19.5 gates cipher
+selection on that bit even when it receives the context. Omitting it makes an
+encryption-required server reject an otherwise valid authenticated session.
+`negotiate_advertises_encryption_capability_and_ciphers` checks the actual request
+bytes; Sambafied #165 qualifies the fix against an independently owned Samba server.
+
 Encryption is activated when the session flags include `ENCRYPT_DATA` or a share has `SMB2_SHAREFLAG_ENCRYPT_DATA`. When active:
 - Outgoing messages are wrapped in TRANSFORM_HEADER (protocol ID 0xFD) with a monotonic nonce
 - Incoming messages with 0xFD are decrypted before processing

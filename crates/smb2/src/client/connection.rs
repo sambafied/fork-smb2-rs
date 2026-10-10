@@ -2778,7 +2778,10 @@ impl Connection {
         let request = NegotiateRequest {
             security_mode: SecurityMode::new(SecurityMode::SIGNING_ENABLED),
             capabilities: Capabilities::new(
-                Capabilities::DFS | Capabilities::LEASING | Capabilities::LARGE_MTU,
+                Capabilities::DFS
+                    | Capabilities::LEASING
+                    | Capabilities::LARGE_MTU
+                    | Capabilities::ENCRYPTION,
             ),
             client_guid,
             dialects: Dialect::ALL.to_vec(),
@@ -6266,6 +6269,26 @@ mod tests {
         assert_eq!(params.max_write_size, 65536);
         assert_eq!(params.max_transact_size, 65536);
         assert!(!params.signing_required);
+    }
+
+    #[tokio::test]
+    async fn negotiate_advertises_encryption_capability_and_ciphers() {
+        let mock = Arc::new(MockTransport::new());
+        mock.enable_auto_rewrite_msg_id();
+        mock.queue_response(build_negotiate_response(Dialect::Smb3_1_1));
+        let mut conn = Connection::from_transport(
+            Box::new(mock.clone()),
+            Box::new(mock.clone()),
+            "test-server",
+        );
+        conn.negotiate().await.unwrap();
+        let wire = mock.sent_message(0).unwrap();
+        let request =
+            NegotiateRequest::unpack(&mut ReadCursor::new(&wire[Header::SIZE..])).unwrap();
+        assert!(request.capabilities.contains(Capabilities::ENCRYPTION));
+        assert!(request.negotiate_contexts.iter().any(|context| matches!(
+            context, NegotiateContext::Encryption { ciphers } if ciphers.contains(&CIPHER_AES_128_GCM)
+        )));
     }
 
     #[tokio::test]
